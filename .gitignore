@@ -43,3 +43,8 @@ Data
 #Virtual Enviroment
 venv/
 .DS_Store
+
+
+# Added by cargo
+
+/target
