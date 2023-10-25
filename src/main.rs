@@ -4,7 +4,8 @@ use std::os::unix::io::RawFd;
 use alsa::{pcm, PollDescriptors, Direction, ValueOr};
 use std::ffi::CString;
 use alsa::pcm::*;
-mod sampler;
+mod spectral_density;
+mod sound_card;
 
 fn pcm_to_fd(p: &pcm::PCM) -> Result<RawFd, alsa::Error> {
     let mut fds: [libc::pollfd; 1] = unsafe { mem::zeroed() };
