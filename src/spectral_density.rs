@@ -11,7 +11,7 @@ pub struct SpectralDensity<T: Measurement> {
     pub noise_floor: T,
     pub seems_off: bool,
     pub all_match: bool,
-    data: std::collections::LinkedList<SpectralDensitySample<T, T>>
+    pub data: std::collections::LinkedList<SpectralDensitySample<T, T>>
 }
 
 impl<T: Measurement> SpectralDensity<T> {
@@ -116,16 +116,6 @@ impl<T: Measurement> SpectralDensity<T> {
     }
     
     
-}
-
-
-impl<T: Measurement> Iterator for SpectralDensity<T> {
-    type Item = SpectralDensitySample<T, T>;
-    
-    fn next(&mut self) -> Option<Self::Item> {
-        None
-
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
