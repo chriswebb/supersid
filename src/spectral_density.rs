@@ -15,7 +15,7 @@ pub struct SpectralDensity<T: Measurement> {
 }
 
 impl<T: Measurement> SpectralDensity<T> {
-    pub fn new(data: Vec<T>, audio_sampling_rate: T, num_ffts: usize) -> Self {
+    pub fn new(data: &[T], audio_sampling_rate: T, num_ffts: usize) -> Self {
         let mut noise_total: Option<T> = None;
         let mut first_sample: Option<SpectralDensitySample<T, T>> = None;
         let mut peak_sample: Option<SpectralDensitySample<T, T>> = None;
@@ -66,7 +66,7 @@ impl<T: Measurement> SpectralDensity<T> {
     
     }
     /// Returns [Welch] [Builder] given the `signal` sampled at `fs`Hz
-    pub fn get_welch_spectral_density(data: Vec <T>, audio_sampling_rate: T, num_ffts: usize) -> Vec<(T, T)> {
+    pub fn get_welch_spectral_density(data: &[T], audio_sampling_rate: T, num_ffts: usize) -> Vec<(T, T)> {
         let welch_spectral_density: welch_sde::SpectralDensity<T> = welch_sde::SpectralDensity::<T>::builder(&data,audio_sampling_rate).n_segment(num_ffts).build();
         let periodogram: welch_sde::Periodogram<T> = welch_spectral_density.periodogram();
         let periodogram_map: Vec<(T, T)> = zip(periodogram.frequency(), &(*periodogram)).map(|(x, &y)| (x, y)).collect();
