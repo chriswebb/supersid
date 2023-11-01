@@ -5,24 +5,28 @@ use num_traits::{cast::FromPrimitive, float::Float};
 
 // Transform Vec<Signal> to Vec<SpectralDensitySample<Frequency, SpectralDensityMeasure>>
 
+#[allow(non_snake_case)]
 #[derive(Debug)]
 pub struct SpectralDensity<T: Measurement> {
     pub peak: Option<SpectralDensitySample<T, T>>,
     pub noise_floor: T,
+    pub audio_sampling_rate: T,
+    pub N: usize,
     pub seems_off: bool,
     pub all_match: bool,
     pub data: std::collections::LinkedList<SpectralDensitySample<T, T>>
 }
 
 impl<T: Measurement> SpectralDensity<T> {
-    pub fn new(data: &[T], audio_sampling_rate: T, num_ffts: usize) -> Self {
+    #[allow(non_snake_case)]
+    pub fn new(data: &[T], audio_sampling_rate: T, N: usize) -> Self {
         let mut noise_total: Option<T> = None;
         let mut first_sample: Option<SpectralDensitySample<T, T>> = None;
         let mut peak_sample: Option<SpectralDensitySample<T, T>> = None;
         let mut seems_off: bool = true;
         let mut all_match: bool = true;
         let total_freqs: usize = data.len();
-        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, num_ffts).iter().map(|(freq, sd)| {      
+        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, N).iter().map(|(freq, sd)| {      
             let sample = SpectralDensitySample::<T, T>::new(*freq, *sd);
             if first_sample.is_none() {
                 peak_sample = Some(sample);
@@ -44,8 +48,10 @@ impl<T: Measurement> SpectralDensity<T> {
         };
 
         if peak_sample.is_some() {
-            if num_ffts > 1 {
-                if (peak_sample.unwrap()).frequency() == (first_sample.unwrap()).frequency() || (peak_sample.unwrap()).spectral_density() != (first_sample.unwrap()).spectral_density() {
+            if N < audio_sampling_rate.to_usize().unwrap() / 2 {
+                let peak = peak_sample.unwrap();
+                let first = first_sample.unwrap();
+                if peak.frequency() == first.frequency() || peak.spectral_density() != peak.spectral_density() {
                     seems_off = false;
                     all_match = false;
                 }
@@ -59,6 +65,8 @@ impl<T: Measurement> SpectralDensity<T> {
         Self {
             peak: peak_sample,
             noise_floor: noise_floor,
+            audio_sampling_rate: audio_sampling_rate,
+            N: N,
             data: spectral_densities,
             all_match: all_match,
             seems_off: seems_off
@@ -66,14 +74,15 @@ impl<T: Measurement> SpectralDensity<T> {
     
     }
     
-    pub fn filtered(data: &[T], frequency_filter: &[FrequencyFilter<T>], audio_sampling_rate: T, num_ffts: usize) -> Self {
+    #[allow(non_snake_case)]
+    pub fn filtered(data: &[T], frequency_filter: &[FrequencyFilter<T>], audio_sampling_rate: T, N: usize) -> Self {
         let mut noise_total: Option<T> = None;
         let mut first_sample: Option<SpectralDensitySample<T, T>> = None;
         let mut peak_sample: Option<SpectralDensitySample<T, T>> = None;
         let mut seems_off: bool = true;
         let mut all_match: bool = true;
         let total_freqs: usize = data.len();
-        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, num_ffts).iter().map(|(freq, sd)| {         
+        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, N).iter().map(|(freq, sd)| {         
             let sample = SpectralDensitySample::<T, T>::new(*freq, *sd);
             if first_sample.is_none() {
                 peak_sample = Some(sample);
@@ -95,7 +104,7 @@ impl<T: Measurement> SpectralDensity<T> {
         };
 
         if peak_sample.is_some() {
-            if num_ffts > 1 {
+            if N > 1 {
                 if (peak_sample.unwrap()).frequency() == (first_sample.unwrap()).frequency() || (peak_sample.unwrap()).spectral_density() != (first_sample.unwrap()).spectral_density() {
                     seems_off = false;
                     all_match = false;
@@ -110,28 +119,23 @@ impl<T: Measurement> SpectralDensity<T> {
         Self {
             peak: peak_sample,
             noise_floor: noise_floor,
+            audio_sampling_rate: audio_sampling_rate,
+            N: N,
             data: spectral_densities,
             all_match: all_match,
             seems_off: seems_off
          }
     
     }
+
+
     /// Returns [Welch] [Builder] given the `signal` sampled at `fs`Hz
-    pub fn get_welch_spectral_density(data: &[T], audio_sampling_rate: T, num_ffts: usize) -> Vec<(T, T)> {
-        let welch_spectral_density: welch_sde::SpectralDensity<T> = welch_sde::SpectralDensity::<T>::builder(&data,audio_sampling_rate).n_segment(num_ffts).build();
+    #[allow(non_snake_case)]
+    pub fn get_welch_spectral_density(data: &[T], audio_sampling_rate: T, N: usize) -> Vec<(T, T)> {
+        let welch_spectral_density: welch_sde::SpectralDensity<T> = welch_sde::SpectralDensity::<T>::builder(&data,audio_sampling_rate).n_segment(N).build();
         let periodogram: welch_sde::Periodogram<T> = welch_spectral_density.periodogram();
         let periodogram_map: Vec<(T, T)> = zip(periodogram.frequency(), &(*periodogram)).map(|(x, &y)| (x, y)).collect();
         return periodogram_map;
-    }
-
-    /// Returns the number of FFTs for the window of the welch spectral density
-    pub fn get_fft_number(audio_sampling_rate: T) -> usize {
-        // num_ffts = 1024 for 44100 and 48000,
-        //            2048 for 96000,
-        //            4096 for 192000
-        // -> the frequency resolution is constant
-        let audio_sampling_rate_usize: usize = audio_sampling_rate.to_usize().unwrap();
-        if audio_sampling_rate_usize <= 48000 { 1024 } else { 1024 * audio_sampling_rate_usize / 48000 }
     }
 
     pub fn get_peak_freq(data: Vec<(T, T)>) -> T {
@@ -170,7 +174,7 @@ impl<T: Measurement> SpectralDensity<T> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SpectralDensitySample<T: Measurement, U: Measurement>(T, U);
+pub struct SpectralDensitySample<T: Measurement, U: Measurement>(pub T, pub U);
 
 impl<T: Measurement, U: Measurement> SpectralDensitySample<T, U> {
     

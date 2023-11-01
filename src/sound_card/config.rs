@@ -47,6 +47,10 @@ pub enum SamplingRate {
 
 impl SamplingRate {
     
+    pub fn sample_value<T: super::Sample>(&self) -> T {    
+        T::from(self.value()).unwrap()
+    }
+
     pub fn value(&self) -> usize {
         match self {
             Self::Hz44100 => 44100,
