@@ -22,18 +22,18 @@ impl<T: Measurement> SpectralDensity<T> {
         let mut seems_off: bool = true;
         let mut all_match: bool = true;
         let total_freqs: usize = data.len();
-        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, num_ffts).iter().map(|(freq, sd)| {         
-            let sample: SpectralDensitySample<T, T> = SpectralDensitySample::new(*freq, *sd);
+        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, num_ffts).iter().map(|(freq, sd)| {      
+            let sample = SpectralDensitySample::<T, T>::new(*freq, *sd);
             if first_sample.is_none() {
                 peak_sample = Some(sample);
                 first_sample = Some(sample);
             }
-            if sample.spectral_density >= (peak_sample.unwrap()).spectral_density { // >= used to ensure first_sample and peak won't match if they have the same sd
+            if sample.spectral_density() >= (peak_sample.unwrap()).spectral_density() { // >= used to ensure first_sample and peak won't match if they have the same sd
                 peak_sample = Some(sample);
             }
             match noise_total {
-                Some(noise) => noise_total = Some(noise + sample.spectral_density),
-                None => noise_total = Some(sample.spectral_density),
+                Some(noise) => noise_total = Some(noise + sample.spectral_density()),
+                None => noise_total = Some(sample.spectral_density()),
             };
             return sample
         }).collect();
@@ -45,7 +45,58 @@ impl<T: Measurement> SpectralDensity<T> {
 
         if peak_sample.is_some() {
             if num_ffts > 1 {
-                if (peak_sample.unwrap()).frequency == (first_sample.unwrap()).frequency || (peak_sample.unwrap()).spectral_density != (first_sample.unwrap()).spectral_density {
+                if (peak_sample.unwrap()).frequency() == (first_sample.unwrap()).frequency() || (peak_sample.unwrap()).spectral_density() != (first_sample.unwrap()).spectral_density() {
+                    seems_off = false;
+                    all_match = false;
+                }
+            }
+            else {
+                seems_off = false;
+                all_match = true;
+            }
+        }
+
+        Self {
+            peak: peak_sample,
+            noise_floor: noise_floor,
+            data: spectral_densities,
+            all_match: all_match,
+            seems_off: seems_off
+         }
+    
+    }
+    
+    pub fn filtered(data: &[T], frequency_filter: &[FrequencyFilter<T>], audio_sampling_rate: T, num_ffts: usize) -> Self {
+        let mut noise_total: Option<T> = None;
+        let mut first_sample: Option<SpectralDensitySample<T, T>> = None;
+        let mut peak_sample: Option<SpectralDensitySample<T, T>> = None;
+        let mut seems_off: bool = true;
+        let mut all_match: bool = true;
+        let total_freqs: usize = data.len();
+        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, num_ffts).iter().map(|(freq, sd)| {         
+            let sample = SpectralDensitySample::<T, T>::new(*freq, *sd);
+            if first_sample.is_none() {
+                peak_sample = Some(sample);
+                first_sample = Some(sample);
+            }
+            if sample.spectral_density() >= (peak_sample.unwrap()).spectral_density() { // >= used to ensure first_sample and peak won't match if they have the same sd
+                peak_sample = Some(sample);
+            }
+            match noise_total {
+                Some(noise) => noise_total = Some(noise + sample.spectral_density()),
+                None => noise_total = Some(sample.spectral_density()),
+            };
+            return sample
+        }).collect();
+        
+        let noise_floor = match noise_total {
+            Some(noise) => noise / (T::from_usize(total_freqs).unwrap()),
+            None => panic!("No samples to generate noise total")
+        };
+
+        if peak_sample.is_some() {
+            if num_ffts > 1 {
+                if (peak_sample.unwrap()).frequency() == (first_sample.unwrap()).frequency() || (peak_sample.unwrap()).spectral_density() != (first_sample.unwrap()).spectral_density() {
                     seems_off = false;
                     all_match = false;
                 }
@@ -119,15 +170,21 @@ impl<T: Measurement> SpectralDensity<T> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SpectralDensitySample<T: Measurement, U: Measurement>
-{
-    pub frequency: T,
-    pub spectral_density: U,
-}
+pub struct SpectralDensitySample<T: Measurement, U: Measurement>(T, U);
 
 impl<T: Measurement, U: Measurement> SpectralDensitySample<T, U> {
+    
+    pub fn frequency(&self) -> T {
+        let Self(freq, sd) = self;
+        return *freq;
+    }
+
+    pub fn spectral_density(&self) -> U {
+        let Self(freq, sd) = self;
+        return *sd;
+    }
     pub fn new(freq: T, sd: U) -> Self {
-        Self { frequency: freq, spectral_density: sd }
+        Self(freq, sd)
     }
 }
 
@@ -139,3 +196,17 @@ pub trait Measurement:
 impl Measurement for f64 {}
 impl Measurement for f32 {}
 
+
+pub struct FrequencyFilter<T: Measurement> {
+    pub frequency: T,
+    pub bin: usize
+}
+
+impl<T: Measurement> FrequencyFilter<T> {
+    pub fn new(frequency: T, bin: usize) -> Self {
+        Self {
+            frequency: frequency,
+            bin: bin
+        }
+    }
+}

@@ -1,12 +1,14 @@
+
+#[derive(Clone)]
 pub struct SoundCardConfig {
     pub device_id: String,
     pub format: self::Format,
-    pub sampling_rate: self::SamplingRates,
+    pub sampling_rate: self::SamplingRate,
     pub period_size: usize
 }
 
-impl SoundCardConfig{
-    pub fn new(device_id: &str, format: self::Format, sampling_rate: self::SamplingRates, period_size: usize) -> Self {
+impl SoundCardConfig {
+    pub fn new(device_id: &str, format: self::Format, sampling_rate: self::SamplingRate, period_size: usize) -> Self {
         Self {
             device_id: device_id.to_string(),
             format: format,
@@ -15,6 +17,7 @@ impl SoundCardConfig{
         }
     }
 }
+
 
 #[derive(Clone, Copy)]
 pub enum Format {
@@ -35,14 +38,14 @@ impl Format {
 }
 
 #[derive(Clone, Copy)]
-pub enum SamplingRates {
+pub enum SamplingRate {
     Hz44100,
     Hz48000,
     Hz96000,
     Hz192000
 }
 
-impl SamplingRates {
+impl SamplingRate {
     
     pub fn value(&self) -> usize {
         match self {
