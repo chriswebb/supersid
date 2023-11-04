@@ -115,7 +115,7 @@ pub struct AlsaPlayer<T: super::Sample> {
 }
 
 impl<T: super::Sample> AlsaPlayer<T> {
-    fn new(sound_card: AlsaSoundCard<T>, channels: usize) -> Self {
+    pub fn new(sound_card: AlsaSoundCard<T>, channels: usize) -> Self {
         let data;
         match ::alsa::pcm::PCM::new(&(sound_card.config.device_id.as_str()), ::alsa::Direction::Playback, false) {
             Ok(pcm) => { data = AlsaPlayer::<T> {
@@ -226,7 +226,7 @@ pub struct AlsaRecorder<T: super::Sample> {
 
 
 impl<T: super::Sample> AlsaRecorder<T> {
-    fn new(sound_card: AlsaSoundCard<T>, channels: usize) -> Self {
+    pub fn new(sound_card: AlsaSoundCard<T>, channels: usize) -> Self {
         let data;
         match ::alsa::pcm::PCM::new(&(sound_card.config.device_id.as_str()), ::alsa::Direction::Capture, false) {
             Ok(pcm) => { data = AlsaRecorder::<T> {

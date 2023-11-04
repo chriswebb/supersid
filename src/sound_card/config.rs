@@ -1,5 +1,5 @@
 
-#[derive(Clone)]
+#[derive(Debug, Clone, ::serde::Serialize, ::serde::Deserialize)]
 pub struct SoundCardConfig {
     pub device_id: String,
     pub format: self::Format,
@@ -19,7 +19,7 @@ impl SoundCardConfig {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, ::serde::Serialize, ::serde::Deserialize)]
 pub enum Format {
     B16,
     B24,
@@ -37,7 +37,7 @@ impl Format {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, ::serde::Serialize, ::serde::Deserialize)]
 pub enum SamplingRate {
     Hz44100,
     Hz48000,
