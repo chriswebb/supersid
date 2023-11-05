@@ -18,7 +18,7 @@ pub trait SoundCardRecorder<T: Sample> {
 }
 
 pub trait Sample:
-    ::alsa::pcm::IoFormat + welch_sde::Signal + num_traits::Float + std::iter::Sum + std::ops::SubAssign + std::ops::AddAssign + num_traits::cast::FromPrimitive
+    ::alsa::pcm::IoFormat + welch_sde::Signal + num_traits::Float + std::iter::Sum + std::ops::SubAssign + std::ops::AddAssign + num_traits::cast::FromPrimitive + Default + Sized
 {
 }
 impl Sample for f64 {}

@@ -1,11 +1,11 @@
-use sound_card::SoundCard;
+use sound_card::{{SoundCard, alsa::AlsaSoundCardLink, SoundCardPlayer, SoundCardRecorder}};
 use num_traits::ToPrimitive;
 use supersid::config::StationConfig;
 
 mod spectral_density;
 mod sound_card;
 mod supersid;
-//mod math;
+mod math;
 //mod sound_card_sampler;
 
 
@@ -13,7 +13,7 @@ mod supersid;
 fn main() {
 
     // TODO: Turn following into config loads
-    let device_id = "hw:CARD=sndrpihifiberry,DEV=0";
+    let device_id = "plughw:CARD=sndrpihifiberry,DEV=0";
     let format = sound_card::config::Format::B32;
     let sampling_rate = sound_card::config::SamplingRate::Hz192000;
     let sampling_rate_f64 = sampling_rate.sample_value::<f64>();
@@ -22,8 +22,9 @@ fn main() {
     let n: usize = 256;
     
     let sound_card_config = sound_card::config::SoundCardConfig::new(device_id, format, sampling_rate, period_size);
+    let sound_card_config_playback = sound_card_config.clone();
     let sound_card = sound_card::alsa::AlsaSoundCard::<f64>::new(sound_card_config);
-    let mut recorder = sound_card.create_recorder(2);
+    let mut recorder = sound_card.create_alsa_recorder(2);
     let data: Vec<sound_card::ChannelData<f64>>;
 
     let mut stations = Vec::<StationConfig>::with_capacity(6);
@@ -34,11 +35,47 @@ fn main() {
     stations.push(StationConfig::new("NWC", 'y', 19800));
     stations.push(StationConfig::new("JJI", 'k', 22200));
 
+    //let sound_card_playback = sound_card::alsa::AlsaSoundCard::<f64>::new(sound_card_config_playback);
+    //let mut player = sound_card.create_alsa_player(2);
+    //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
+   //let mut player = sound_card.create_alsa_player(2);
+    //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
+
+    
+    // let data_1 = math::generate_tone::<f64>(10000f64, sampling_rate_f64, sampling_rate.value(), 1.);
+    // let data_2 = math::generate_tone::<f64>(20000f64, sampling_rate_f64, sampling_rate.value(), 1.);
+
+    // let mut chan_data_vec = Vec::new();
+    // chan_data_vec.push(sound_card::ChannelData::<f64>::new(1, data_1));
+    // chan_data_vec.push(sound_card::ChannelData::<f64>::new(2, data_2));
 
 
+    std::thread::spawn(move || {
+        let sound_card_playback = sound_card::alsa::AlsaSoundCard::<f64>::new(sound_card_config_playback);
+        let mut player = sound_card_playback.create_alsa_player(2);
+        //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
+       //let mut player = sound_card.create_alsa_player(2);
+        //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
+    
+        
+        let data_1 = math::generate_tone::<f64>(50000f64, sampling_rate_f64, sampling_rate.value(), 50000.);
+        let data_2 = math::generate_tone::<f64>(50000f64, sampling_rate_f64, sampling_rate.value(), 50000.);
+        //let data_2 = math::generate_tone::<f64>(60000f64, sampling_rate_f64, sampling_rate.value(), 80000.);
+    
+        let mut chan_data_vec = Vec::new();
+        chan_data_vec.push(sound_card::ChannelData::<f64>::new(1, data_1));
+        chan_data_vec.push(sound_card::ChannelData::<f64>::new(2, data_2));
+
+        while true {
+            player.play(&chan_data_vec);
+        }
+    });
+
+    recorder.record(1000);
+    //std::thread::sleep(std::time::Duration::from_millis(500));
     let start = std::time::Instant::now();
 
-    match recorder.record(2000) {
+    match recorder.record(1000) {
         Ok(res_data) => data = res_data,
         Err(error) => panic!("Unable to record: {}", error)
     };
@@ -60,14 +97,14 @@ fn main() {
         i += 1;
     }
 
-    i = 0;
-    for sd_data in spec_density[0].data.iter() {
-        println!("Freq {} Hz measured power: {} dB/Hz", sd_data.frequency(), sd_data.spectral_density());
-        i += 1;
-    }
-    println!("------------------------------------------");
-
     let sd_finish_time = std::time::Instant::now();
+
+    // i = 0;
+    // for sd_data in spec_density[0].data.iter() {
+    //     println!("Freq {} Hz measured power: {} dB/Hz", sd_data.frequency(), sd_data.spectral_density_db());
+    //     i += 1;
+    // }
+    println!("------------------------------------------");
     println!("Spectrum Record Length: {}", spec_density[0].data.len());
     println!("------------------------------------------");
 
@@ -75,11 +112,10 @@ fn main() {
     let mut j;
     for sd_data in spec_density[0].data.iter() {
         j = 0;
-        //println!("Freq {} Hz measured power: {} dB/Hz", sd_data.frequency(), sd_data.spectral_density());
         while j < stations.len() {
             let station = &stations[j];
             if i == station.get_bin(spec_density[0].freq_step) {
-                println!("Station {} ({} Hz): measured frequency {} Hz; measured power: {} s", station.callsign, station.frequency, sd_data.frequency(), sd_data.spectral_density());
+                println!("Station {} ({} Hz): measured frequency {} Hz; measured power: {} dB/Hz", station.callsign, station.frequency, sd_data.frequency(), sd_data.spectral_density_db());
             }
             j += 1;
         }

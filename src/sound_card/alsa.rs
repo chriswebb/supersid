@@ -1,7 +1,7 @@
 use num_traits::ToPrimitive;
 
 pub trait AlsaSoundCardLink {
-    fn link(&mut self, other: &mut (dyn AlsaSoundCardLink)) -> Result<(), std::io::Error>;
+    fn link<'a, T: AlsaSoundCardLink>(&'a mut self, other: &'a mut T) -> Result<(), std::io::Error>;
     fn get_pcm<'a>(&'a mut self) -> &'a ::alsa::pcm::PCM;
 }
 
@@ -14,6 +14,15 @@ pub struct AlsaSoundCard<T: super::Sample> {
 
 
 impl<T: super::Sample> AlsaSoundCard<T> {
+
+    
+    pub fn create_alsa_player(&self, channels: usize) -> AlsaPlayer<T> {
+        AlsaPlayer::<T>::new(self.clone(), channels)
+    }
+
+    pub fn create_alsa_recorder(&self, channels: usize) -> AlsaRecorder<T> {
+        AlsaRecorder::<T>::new(self.clone(), channels)
+    }
 
     pub fn get_std_error(error: ::alsa::Error) -> std::io::Error {
         std::io::Error::new(std::io::ErrorKind::Other, error)
@@ -56,7 +65,7 @@ impl<T: super::Sample> AlsaSoundCard<T> {
             Err(error) => return Err(error)
         };
 
-        match hwp.set_buffer_size(16384) {
+        match hwp.set_buffer_size(super::config::BUFFER_LENGTH.to_i64().unwrap()) {
             Ok(_) => (),
             Err(error) => return Err(error)
         };
@@ -97,11 +106,11 @@ impl<T: super::Sample> super::SoundCard<T> for AlsaSoundCard<T> {
 
     
     fn create_player(&self, channels: usize) -> Box<dyn super::SoundCardPlayer<T>> {
-        Box::new(AlsaPlayer::<T>::new(self.clone(), channels))
+        Box::new(self.create_alsa_player(channels))
     }
 
     fn create_recorder(&self, channels: usize) -> Box<dyn super::SoundCardRecorder<T>> {
-        Box::new(AlsaRecorder::<T>::new(self.clone(), channels))
+        Box::new(self.create_alsa_recorder(channels))
     }
     
 }
@@ -134,11 +143,11 @@ impl<T: super::Sample> AlsaPlayer<T> {
                                     Ok(_) => (),
                                     Err(error) => panic!("Could not set hardware for PCM capture device '{}': {}", data.sound_card.config.device_id, error)
                                 };
+
+                                let swp = &data.alsa_pcm.sw_params_current().unwrap();
+                                swp.set_start_threshold(hwp.get_buffer_size().unwrap()).unwrap();
                                 
-                                match data.alsa_pcm.start() {
-                                    Ok(_) => (),
-                                    Err(error) => panic!("Could not start PCM capture device '{}': {}", data.sound_card.config.device_id, error)
-                                };
+
                             }
                             return data;
             },
@@ -148,7 +157,7 @@ impl<T: super::Sample> AlsaPlayer<T> {
 }
 
 impl<T: super::Sample> AlsaSoundCardLink for AlsaPlayer<T> {
-    fn link(&mut self, other: &mut (dyn AlsaSoundCardLink)) -> Result<(), std::io::Error> {
+    fn link<'a, U: AlsaSoundCardLink>(&'a mut self, other: &'a mut U) -> Result<(), std::io::Error> {
         match self.alsa_pcm.link(&other.get_pcm()) {
             Ok(_) => Ok(()),
             Err(_) => Err(std::io::Error::new(std::io::ErrorKind::Other, "Error occurred while linking to other pcm."))
@@ -188,30 +197,34 @@ impl<T: super::Sample> super::SoundCardPlayer<T> for AlsaPlayer<T> {
             i += 1;
         }
     
-        let mut interleaved_data: Vec<T> = Vec::<T>::with_capacity(min_length * self.channels);
+        let mut interleaved_data: Vec<i32> = Vec::<i32>::with_capacity(min_length * self.channels);
         let mut j: usize;
         i = 0;
         while i < min_length {
             j = 0;
             while j < data.len() {
-                interleaved_data.push(data[j].channel_data[i]);
+                interleaved_data.push(data[j].channel_data[i].to_i32().unwrap());
                 j += 1;
             }
             i += 1;
         }
-        let num_frames = data.len() / self.channels;
+        let num_frames = interleaved_data.len() / self.channels;
 
         let pcm_io;
 
-        match self.alsa_pcm.io_checked::<T>() {
+        match self.alsa_pcm.io_checked::<i32>() {
             Ok(io) => pcm_io = io,
             Err(error) => return Err(AlsaSoundCard::<T>::get_std_error(error))
         };
 
-        match pcm_io.writei(&interleaved_data) {
-            Ok(frames_written) => assert_eq!(frames_written, num_frames),
-            Err(error) => return Err(AlsaSoundCard::<T>::get_std_error(error))
-        };
+        let mut total_frames_written: usize = 0;
+        let buffer_length = 16384;
+        while (total_frames_written < interleaved_data.len()) {
+            match pcm_io.writei(&interleaved_data[total_frames_written*self.channels..std::cmp::min(interleaved_data.len(), (total_frames_written+buffer_length)*self.channels)]) {
+                Ok(frames_written) => total_frames_written += frames_written,
+                Err(error) => return Err(AlsaSoundCard::<T>::get_std_error(error))
+            };
+        }
 
         Ok(())
     }
@@ -221,7 +234,8 @@ impl<T: super::Sample> super::SoundCardPlayer<T> for AlsaPlayer<T> {
 pub struct AlsaRecorder<T: super::Sample> {
     pub sound_card: AlsaSoundCard<T>,
     pub channels: usize,
-    alsa_pcm: ::alsa::pcm::PCM
+    alsa_pcm: ::alsa::pcm::PCM,
+    buffer_vec: Vec<[i32; super::config::CHAN_BUFFER_LENGTH]>
 }
 
 
@@ -232,7 +246,8 @@ impl<T: super::Sample> AlsaRecorder<T> {
             Ok(pcm) => { data = AlsaRecorder::<T> {
                                 sound_card: sound_card,
                                 channels: channels,
-                                alsa_pcm: pcm
+                                alsa_pcm: pcm,
+                                buffer_vec: Vec::<[i32; super::config::CHAN_BUFFER_LENGTH]>::new()
                             };
                             {
                                 let hwp;
@@ -259,7 +274,7 @@ impl<T: super::Sample> AlsaRecorder<T> {
 }
 
 impl<T: super::Sample> AlsaSoundCardLink for AlsaRecorder<T> {
-    fn link(&mut self, other: &mut (dyn AlsaSoundCardLink)) -> Result<(), std::io::Error> {
+    fn link<'a, U: AlsaSoundCardLink>(&'a mut self, other: &'a mut U) -> Result<(), std::io::Error> {
         match self.alsa_pcm.link(&other.get_pcm()) {
             Ok(_) => Ok(()),
             Err(_) => Err(std::io::Error::new(std::io::ErrorKind::Other, "Error occurred while linking to other pcm."))
@@ -276,6 +291,18 @@ impl<T: super::Sample> super::SoundCardRecorder<T> for AlsaRecorder<T> {
     fn record(&mut self, milliseconds: usize) -> Result<Vec<super::ChannelData<T>>, std::io::Error> {
 
         let num_frames = self.sound_card.config.sampling_rate.value() * milliseconds / 1000;
+        let buffer_multiple = num_frames.div_ceil(super::config::BUFFER_LENGTH);
+
+        if (self.buffer_vec.len() != buffer_multiple) {
+            if self.buffer_vec.len() > buffer_multiple {
+                self.buffer_vec.truncate(buffer_multiple )
+            }
+            else if self.buffer_vec.len() < buffer_multiple {
+                self.buffer_vec.resize_with(buffer_multiple, || -> [i32; super::config::CHAN_BUFFER_LENGTH] {
+                    [0i32; super::config::CHAN_BUFFER_LENGTH]
+                });
+            }
+        }
 
         let pcm_io;
 
@@ -284,10 +311,9 @@ impl<T: super::Sample> super::SoundCardRecorder<T> for AlsaRecorder<T> {
             Err(error) => return Err(AlsaSoundCard::<T>::get_std_error(error))
         };
 
-        let mut buffer= [0i32; 2048];
         let mut total_frames_read: usize = 0;
-        let mut i: usize = 0;
         let mut data = Vec::<super::ChannelData<T>>::with_capacity(self.channels);
+        let mut i: usize = 0;
 
         while i < self.channels {
             data.push(super::ChannelData::<T>::new(i + 1, Vec::<T>::with_capacity(num_frames)));
@@ -295,26 +321,33 @@ impl<T: super::Sample> super::SoundCardRecorder<T> for AlsaRecorder<T> {
         }
 
         let record_start = std::time::Instant::now();
+        let mut current_buffer_number: usize = 0;
+    
         while total_frames_read < num_frames {
-            match pcm_io.readi(&mut buffer) {
-                Ok(frames_read) => {
-                    if frames_read > 0 {
-                        i = 0;
-                        while i < frames_read {
-                            let mut j = 0;
-                            while j < self.channels {
-                                data[j].channel_data.push(T::from(buffer[i+j]).unwrap());
-                                j += 1;
-                            }
-                            i += 1;
-                        }
-
-                        total_frames_read += frames_read;
-                    }
-                },
+            match pcm_io.readi(&mut self.buffer_vec[current_buffer_number]) {
+                Ok(frames_read) => total_frames_read += frames_read,
                 Err(error) => return Err(AlsaSoundCard::<T>::get_std_error(error))
             };
+            current_buffer_number += 1;
             //println!("frames read {} of {} total.", total_frames_read, num_frames);
+        }
+
+        {
+            current_buffer_number = 0;
+            let mut j: usize;
+            while current_buffer_number < buffer_multiple {
+                i = 0;
+                while i < super::config::BUFFER_LENGTH {
+                    j = 0;
+                    while j < self.channels {
+                        data[j].channel_data.push(T::from(self.buffer_vec[current_buffer_number][i+j]).unwrap());
+                        j += 1;
+                    }
+                    i += 1;
+
+                }
+                current_buffer_number += 1;
+            }
         }
 
         let record_duration = record_start.elapsed();

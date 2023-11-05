@@ -11,7 +11,7 @@ pub fn plot_spectrum<T: super::Measurement>(spectrum: &super::SpectralDensity<T>
         ).into();
     }
     else {
-        let _: complot::LinLog = (
+        let _: complot::LogLin = (
             spectrum.data.iter()
                 .map(|&super::SpectralDensitySample::<T, T>(freq, sd)| (freq.to_f64().unwrap(), vec![sd.to_f64().unwrap()])),
             complot::complot!(

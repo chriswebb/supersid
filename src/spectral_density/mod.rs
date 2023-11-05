@@ -4,9 +4,6 @@ use num_traits::{cast::FromPrimitive, float::Float};
 
 pub mod plotter;
 
-
-// Transform Vec<Signal> to Vec<SpectralDensitySample<Frequency, SpectralDensityMeasure>>
-
 #[allow(non_snake_case)]
 #[derive(Debug)]
 pub struct SpectralDensity<T: Measurement> {
@@ -141,7 +138,6 @@ impl<T: Measurement> SpectralDensity<T> {
 pub struct SpectralDensitySample<T: Measurement, U: Measurement>(pub T, pub U);
 
 impl<T: Measurement, U: Measurement> SpectralDensitySample<T, U> {
-    
     pub fn frequency(&self) -> T {
         let Self(freq, sd) = self;
         return *freq;
@@ -151,6 +147,11 @@ impl<T: Measurement, U: Measurement> SpectralDensitySample<T, U> {
         let Self(freq, sd) = self;
         return *sd;
     }
+
+    pub fn spectral_density_db(&self) -> U {
+        return U::from(10).unwrap() * self.1.log10();
+    }
+
     pub fn new(freq: T, sd: U) -> Self {
         Self(freq, sd)
     }

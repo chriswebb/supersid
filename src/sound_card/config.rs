@@ -7,6 +7,9 @@ pub struct SoundCardConfig {
     pub period_size: usize
 }
 
+pub const BUFFER_LENGTH: usize = 16384;
+pub const CHAN_BUFFER_LENGTH: usize = 32768;
+
 impl SoundCardConfig {
     pub fn new(device_id: &str, format: self::Format, sampling_rate: self::SamplingRate, period_size: usize) -> Self {
         Self {
@@ -16,6 +19,7 @@ impl SoundCardConfig {
             period_size: period_size
         }
     }
+
 }
 
 
