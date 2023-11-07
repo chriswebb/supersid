@@ -19,7 +19,7 @@ pub struct SpectralDensity<T: Measurement> {
 
 impl<T: Measurement> SpectralDensity<T> {
     #[allow(non_snake_case)]
-    pub fn new(data: &[T], audio_sampling_rate: T, N: usize) -> Self {
+    pub fn new<U: crate::math::Sample>(data: &[U], audio_sampling_rate: T, N: usize) -> Self {
         let mut noise_total: Option<T> = None;
         let mut first_sample: Option<SpectralDensitySample<T, T>> = None;
         let mut second_sample: Option<SpectralDensitySample<T, T>> = None;
@@ -27,8 +27,7 @@ impl<T: Measurement> SpectralDensity<T> {
         let mut seems_off: bool = true;
         let mut all_match: bool = true;
         let total_freqs: usize = data.len();
-        let mut freq_step: T = T::from(0).unwrap();
-        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density(data, audio_sampling_rate, N).iter().map(|(freq, sd)| {
+        let spectral_densities: std::collections::LinkedList<SpectralDensitySample<T, T>> = Self::get_welch_spectral_density::<U>(data, audio_sampling_rate, N).iter().map(|(freq, sd)| {
 
             let sample = SpectralDensitySample::<T, T>::new(*freq, *sd);
 
@@ -53,7 +52,7 @@ impl<T: Measurement> SpectralDensity<T> {
 
         }).collect();
         
-        let freq_step = if spectral_densities.len() > 1 { second_sample.unwrap().frequency() } else { first_sample.unwrap().frequency() };
+        let freq_step = if spectral_densities.len() > 1 { second_sample.unwrap().frequency() } else { T::from_usize(0).unwrap() };
 
         let noise_floor = match noise_total {
             Some(noise) => noise / (T::from_usize(total_freqs).unwrap()),
@@ -91,8 +90,9 @@ impl<T: Measurement> SpectralDensity<T> {
 
     /// Returns [Welch] [Builder] given the `signal` sampled at `fs`Hz
     #[allow(non_snake_case)]
-    pub fn get_welch_spectral_density(data: &[T], audio_sampling_rate: T, N: usize) -> Vec<(T, T)> {
-        let builder = welch_sde::SpectralDensity::<T>::builder(&data,audio_sampling_rate).n_segment(N);
+    pub fn get_welch_spectral_density<U: crate::math::Sample>(data: &[U], audio_sampling_rate: T, N: usize) -> Vec<(T, T)> {
+        let measure_data: Vec<T> = data.iter().map(|x| T::from_f64(x.to_f64().unwrap()).unwrap()).collect();
+        let builder = welch_sde::SpectralDensity::<T>::builder(&measure_data,audio_sampling_rate).n_segment(N);
         let welch_spectral_density: welch_sde::SpectralDensity<T> = builder.build();
         let periodogram: welch_sde::Periodogram<T> = welch_spectral_density.periodogram();
         let periodogram_map: Vec<(T, T)> = zip(periodogram.frequency(), &(*periodogram)).map(|(x, &y)| (x, y)).collect();
@@ -149,7 +149,7 @@ impl<T: Measurement, U: Measurement> SpectralDensitySample<T, U> {
     }
 
     pub fn spectral_density_db(&self) -> U {
-        return U::from(10).unwrap() * self.1.log10();
+        return U::from_usize(10).unwrap() * self.1.log10();
     }
 
     pub fn new(freq: T, sd: U) -> Self {
@@ -157,9 +157,8 @@ impl<T: Measurement, U: Measurement> SpectralDensitySample<T, U> {
     }
 }
 
-
 pub trait Measurement:
-    welch_sde::Signal + Float + std::iter::Sum + std::ops::SubAssign + std::ops::AddAssign + FromPrimitive
+    welch_sde::Signal + ::num_traits::float::Float + std::iter::Sum + std::ops::SubAssign + std::ops::AddAssign + ::num_traits::cast::FromPrimitive + Default
 {
 }
 impl Measurement for f64 {}

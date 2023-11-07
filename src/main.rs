@@ -13,19 +13,19 @@ mod math;
 fn main() {
 
     // TODO: Turn following into config loads
-    let device_id = "plughw:CARD=sndrpihifiberry,DEV=0";
+    let device_id = "hw:CARD=sndrpihifiberry,DEV=0";
     let format = sound_card::config::Format::B32;
     let sampling_rate = sound_card::config::SamplingRate::Hz192000;
     let sampling_rate_f64 = sampling_rate.sample_value::<f64>();
-    let period_size: usize = 512;
+    let period_size: usize = sampling_rate.value() / 100;
 
-    let n: usize = 256;
+    let n: usize = 128;
     
     let sound_card_config = sound_card::config::SoundCardConfig::new(device_id, format, sampling_rate, period_size);
     let sound_card_config_playback = sound_card_config.clone();
-    let sound_card = sound_card::alsa::AlsaSoundCard::<f64>::new(sound_card_config);
+    let sound_card = sound_card::alsa::AlsaSoundCard::<i32>::new(sound_card_config);
     let mut recorder = sound_card.create_alsa_recorder(2);
-    let data: Vec<sound_card::ChannelData<f64>>;
+    let data: Vec<sound_card::ChannelData<i32>>;
 
     let mut stations = Vec::<StationConfig>::with_capacity(6);
     stations.push(StationConfig::new("NAA", 'r', 24000));
@@ -35,47 +35,74 @@ fn main() {
     stations.push(StationConfig::new("NWC", 'y', 19800));
     stations.push(StationConfig::new("JJI", 'k', 22200));
 
-    //let sound_card_playback = sound_card::alsa::AlsaSoundCard::<f64>::new(sound_card_config_playback);
-    //let mut player = sound_card.create_alsa_player(2);
+    // let sound_card_playback = sound_card::alsa::AlsaSoundCard::<f64>::new(sound_card_config_playback);
+    // let mut player = sound_card.create_alsa_player(2);
     //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
    //let mut player = sound_card.create_alsa_player(2);
     //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
 
+    // let mut data_1: Vec<i32> = math::generate_tone::<f64>(50000f64, sampling_rate_f64, sampling_rate.value(), 50000.).iter()
+    //     .map(|x| x.to_i32().unwrap()).collect();
+    // let mut data_2: Vec<i32> = math::generate_tone::<f64>(50000f64, sampling_rate_f64, sampling_rate.value(), 50000.).iter()
+    //     .map(|x| x.to_i32().unwrap()).collect();
     
     // let data_1 = math::generate_tone::<f64>(10000f64, sampling_rate_f64, sampling_rate.value(), 1.);
     // let data_2 = math::generate_tone::<f64>(20000f64, sampling_rate_f64, sampling_rate.value(), 1.);
 
     // let mut chan_data_vec = Vec::new();
-    // chan_data_vec.push(sound_card::ChannelData::<f64>::new(1, data_1));
-    // chan_data_vec.push(sound_card::ChannelData::<f64>::new(2, data_2));
+    // chan_data_vec.push(sound_card::ChannelData::<i32>::new(1, data_1));
+    // chan_data_vec.push(sound_card::ChannelData::<i32>::new(2, data_2));
+    // let mut data_1: Vec<i32> = math::generate_tone::<f64>(50000f64, sampling_rate_f64, sampling_rate.value(), 1024.).iter()
+    // .map(|x| x.to_i32().unwrap()).collect();
+    // let mut data_2: Vec<i32> = math::generate_tone::<f64>(14000f64, sampling_rate_f64, sampling_rate.value(), 1024.).iter()
+    // .map(|x| x.to_i32().unwrap()).collect();
 
+    
+    let mut data_1: Vec<i32> = crate::math::generate_tone::<i32>(50000f64, sampling_rate_f64, sampling_rate.value(), 50000.);
+    let mut data_2: Vec<i32> = crate::math::generate_tone::<i32>(14000f64, sampling_rate_f64, sampling_rate.value(), 50000.);
+
+    data_1.append(&mut data_1.clone()); // 2
+    data_1.append(&mut data_1.clone()); // 4
+    data_1.append(&mut data_1.clone()); // 8
+    data_1.append(&mut data_1.clone()); // 16
+
+    data_2.append(&mut data_2.clone()); // 2
+    data_2.append(&mut data_2.clone()); // 4
+    data_2.append(&mut data_2.clone()); // 8
+    data_2.append(&mut data_2.clone()); // 16
+    
+    let sound_card_playback = sound_card::alsa::AlsaSoundCard::<i32>::new(sound_card_config_playback);
+    let mut player = sound_card_playback.create_alsa_player(2);
+
+    let mut chan_data_vec = Vec::new();
+    chan_data_vec.push(sound_card::ChannelData::<i32>::new(1, data_1));
+    chan_data_vec.push(sound_card::ChannelData::<i32>::new(2, data_2));
 
     std::thread::spawn(move || {
-        let sound_card_playback = sound_card::alsa::AlsaSoundCard::<f64>::new(sound_card_config_playback);
-        let mut player = sound_card_playback.create_alsa_player(2);
         //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
        //let mut player = sound_card.create_alsa_player(2);
         //player.link::<crate::sound_card::alsa::AlsaRecorder<f64>>(&mut recorder);
     
         
-        let data_1 = math::generate_tone::<f64>(50000f64, sampling_rate_f64, sampling_rate.value(), 50000.);
-        let data_2 = math::generate_tone::<f64>(50000f64, sampling_rate_f64, sampling_rate.value(), 50000.);
+
         //let data_2 = math::generate_tone::<f64>(60000f64, sampling_rate_f64, sampling_rate.value(), 80000.);
     
-        let mut chan_data_vec = Vec::new();
-        chan_data_vec.push(sound_card::ChannelData::<f64>::new(1, data_1));
-        chan_data_vec.push(sound_card::ChannelData::<f64>::new(2, data_2));
 
-        while true {
-            player.play(&chan_data_vec);
+        loop {
+            if let Err(error) = player.play(&chan_data_vec) {
+                println!("Error occurred while tring to play sample: {}", error);
+                return;
+            }
+    
         }
     });
 
-    recorder.record(1000);
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    //recorder.record(1000);
     //std::thread::sleep(std::time::Duration::from_millis(500));
     let start = std::time::Instant::now();
 
-    match recorder.record(1000) {
+    match recorder.record(2000) {
         Ok(res_data) => data = res_data,
         Err(error) => panic!("Unable to record: {}", error)
     };
@@ -93,7 +120,7 @@ fn main() {
     let mut spec_density = Vec::<spectral_density::SpectralDensity::<f64>>::new(); 
     let mut i = 0usize;
     while i < data.len() {
-        spec_density.push(crate::spectral_density::SpectralDensity::<f64>::new(&data[i].channel_data, sampling_rate_f64, n));
+        spec_density.push(crate::spectral_density::SpectralDensity::<f64>::new::<i32>(&data[i].channel_data, sampling_rate_f64, n));
         i += 1;
     }
 

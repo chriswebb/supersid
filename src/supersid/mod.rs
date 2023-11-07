@@ -1,5 +1,5 @@
 use num_traits::ToPrimitive;
-use crate::sound_card::SoundCard;
+use crate::sound_card::{{SoundCard, SoundCardRecorder}};
 pub mod config;
 
 /// Returns N for the window of the welch spectral density
@@ -13,7 +13,7 @@ pub fn get_N<T: crate::spectral_density::Measurement>(audio_sampling_rate: T) ->
     if audio_sampling_rate_usize <= 48000 { 1024 } else { 1024 * audio_sampling_rate_usize / 48000 }
 }
 
-pub struct SuperSid<'a, T: crate::sound_card::Sample, U: crate::spectral_density::Measurement> {
+pub struct SuperSid<'a, T: crate::math::Sample, U: crate::spectral_density::Measurement> {
     pub config: &'a config::SuperSidConfig,
     pub raw_data: Vec<crate::sound_card::ChannelData<T>>,
     pub spectrum: Vec<crate::spectral_density::SpectralDensity<U>>,
@@ -21,7 +21,7 @@ pub struct SuperSid<'a, T: crate::sound_card::Sample, U: crate::spectral_density
 }
 
 
-impl<'a, T: crate::sound_card::Sample, U: crate::spectral_density::Measurement> SuperSid<'a, T, U> {
+impl<'a, T: crate::math::Sample, U: crate::spectral_density::Measurement> SuperSid<'a, T, U> {
     pub fn measure(config: &'a config::SuperSidConfig) {
         
         let sampling_rate_f64 = config.sound_card.sampling_rate.sample_value::<f64>();
@@ -29,7 +29,7 @@ impl<'a, T: crate::sound_card::Sample, U: crate::spectral_density::Measurement> 
         let n: usize = 256;
         
         let sound_card = crate::sound_card::alsa::AlsaSoundCard::<f64>::new(config.sound_card.clone());
-        let mut recorder = sound_card.create_recorder(2);
+        let mut recorder = sound_card.create_alsa_recorder(2);
         let data: Vec<crate::sound_card::ChannelData<f64>>;
 
         let start = std::time::Instant::now();

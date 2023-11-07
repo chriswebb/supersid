@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, ::serde::Serialize, ::serde::Deserialize)]
 pub struct SoundCardConfig {
     pub device_id: String,
@@ -6,9 +5,6 @@ pub struct SoundCardConfig {
     pub sampling_rate: self::SamplingRate,
     pub period_size: usize
 }
-
-pub const BUFFER_LENGTH: usize = 16384;
-pub const CHAN_BUFFER_LENGTH: usize = 32768;
 
 impl SoundCardConfig {
     pub fn new(device_id: &str, format: self::Format, sampling_rate: self::SamplingRate, period_size: usize) -> Self {
@@ -51,25 +47,35 @@ pub enum SamplingRate {
 
 impl SamplingRate {
     
-    pub fn sample_value<T: super::Sample>(&self) -> T {    
-        T::from(self.value()).unwrap()
+    pub const SAMPLING_RATE_44100: usize = 44100;
+    pub const SAMPLING_RATE_48000: usize = 48000;
+    pub const SAMPLING_RATE_96000: usize = 96000;
+    pub const SAMPLING_RATE_192000: usize = 192000;
+    
+    // pub const DOUBLE_SAMPLING_RATE_44100: usize = 44100 * 2;
+    // pub const DOUBLE_SAMPLING_RATE_48000: usize = 48000 * 2;
+    // pub const DOUBLE_SAMPLING_RATE_96000: usize = 96000 * 2;
+    // pub const DOUBLE_SAMPLING_RATE_192000: usize = 192000 * 2;
+
+
+    pub fn sample_value<T: crate::math::Sample>(&self) -> T {    
+        T::from_usize(self.value()).unwrap()
     }
 
     pub fn value(&self) -> usize {
         match self {
-            Self::Hz44100 => 44100,
-            Self::Hz48000 => 48000,
-            Self::Hz96000 => 96000,
-            Self::Hz192000 => 192000
+            Self::Hz48000 => Self::SAMPLING_RATE_48000,
+            Self::Hz96000 => Self::SAMPLING_RATE_96000,
+            Self::Hz192000 => Self::SAMPLING_RATE_192000,
+            Self::Hz44100 => Self::SAMPLING_RATE_44100
         }
     }
 
     pub fn label(value: usize) -> Self {
         match value {
-            44100 => Self::Hz44100,
-            48000 => Self::Hz48000,
-            96000 => Self::Hz96000,
-            192000 => Self::Hz192000,
+            Self::SAMPLING_RATE_48000 => Self::Hz48000,
+            Self::SAMPLING_RATE_96000 => Self::Hz96000,
+            Self::SAMPLING_RATE_192000 => Self::Hz192000,
             _ => Self::Hz44100
         }
     }
