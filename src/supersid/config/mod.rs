@@ -1,4 +1,8 @@
-use crate::spectral_density::{Measurement, self};
+#[derive(Debug, ::serde::Serialize, ::serde::Deserialize)]
+pub enum SampleIntegrationAlgorithm {
+    OneChannel, // Ignores second channel produces a 1 second integration every second.
+    TwoChannel, // Alternates channels to produce a 2 second integration every second.
+}
 
 #[derive(Debug, ::serde::Serialize, ::serde::Deserialize)]
 pub struct SuperSidConfig {
@@ -6,15 +10,16 @@ pub struct SuperSidConfig {
     pub site: SuperSidSite,
     pub sound_card: crate::sound_card::config::SoundCardConfig,
     pub stations: Vec<StationConfig>,
-
+    pub sample_integration_algorith: SampleIntegrationAlgorithm,
     
 
 
 }
 
 impl SuperSidConfig {
-
-    
+    // read config
+    // prompt for new config
+    // save config
 }
 
 
