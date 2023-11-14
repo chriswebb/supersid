@@ -13,6 +13,7 @@ pub trait SoundCardPlayer<T: crate::math::Sample> {
 
 pub trait SoundCardRecorder<T: crate::math::Sample> {
     fn record(&mut self, milliseconds: usize) -> Result<Vec<ChannelData<T>>, std::io::Error>;
+    fn record_loop(&mut self, milliseconds: usize, each: &mut dyn FnMut(Vec<ChannelData<T>>));
 }
 
 
@@ -21,7 +22,8 @@ pub trait SoundCardRecorder<T: crate::math::Sample> {
 pub struct ChannelData<T: crate::math::Sample> {
     pub channel_num: usize,
     pub channel_data: Vec<T>,
-    pub record_duration: Option<std::time::Duration>
+    pub record_start: std::time::Instant,
+    pub record_end: Option<std::time::Instant>
 }
 
 impl<T: crate::math::Sample> ChannelData<T> {
@@ -29,7 +31,8 @@ impl<T: crate::math::Sample> ChannelData<T> {
         Self {
             channel_num: channel_num,
             channel_data: channel_data,
-            record_duration: None
+            record_start: std::time::Instant::now(),
+            record_end: None
         }
     }
 }

@@ -339,11 +339,79 @@ impl<T: crate::math::Sample + ::alsa::pcm::IoFormat> super::SoundCardRecorder<T>
             };
         }
 
+        let finished = std::time::Instant::now();
+        i = 0;
+        while i < self.channels {
+            data[i].record_end = Some(finished);
+        }
+
         match self.alsa_pcm.drop() {
             Ok(_) => (),
             Err(error) => return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, format!("Could not drop PCM capture device '{}'  after capture: {}", self.sound_card.config.device_id, error)))
         };
 
         Ok(data)
+    }
+
+    fn record_loop(&mut self, milliseconds: usize, each: &mut dyn FnMut(Vec<super::ChannelData<T>>)) {
+
+        let num_frames = self.sound_card.config.sampling_rate.value() * milliseconds / 1000;
+
+        let pcm_io;
+
+        match self.alsa_pcm.io_checked::<T>() {
+            Ok(io) => pcm_io = io,
+            Err(error) => panic!("Error occurred while setting up io for recording: {}", error)
+        };
+
+        match self.alsa_pcm.prepare() {
+            Ok(_) => (),
+            Err(error) => panic!("Could not prepare PCM capture device '{}': {}", self.sound_card.config.device_id, error)
+        };
+
+        let mut total_frames_read: usize;
+        let mut data: Vec<super::ChannelData<T>>;
+        let mut i: usize;
+        let mut j: usize;
+        let buffer_len = self.buffer.len();
+        loop {
+            data = Vec::<super::ChannelData<T>>::with_capacity(self.channels);
+            total_frames_read = 0;
+            
+            i = 0;
+            while i < self.channels {
+                data.push(super::ChannelData::<T>::new(i + 1, Vec::<T>::with_capacity(num_frames)));
+                i += 1;
+            }
+
+            while total_frames_read < num_frames {
+                match pcm_io.readi(&mut self.buffer) {
+                    Ok(frames_read) => {
+                        total_frames_read += frames_read;
+                        i = 0;
+                        while i < buffer_len / 2 {
+                            j = 0;
+                            while j < self.channels {
+                                data[j].channel_data.push(self.buffer[(2*i)+j]);
+                                j += 1;
+                            }
+                            i += 1;
+                        }
+                    }
+                    Err(error) => {
+                        let _ = self.alsa_pcm.drop();
+                        panic!("Error occurred while recording: {}", error)
+                    }
+                };
+            }
+
+            let finished = std::time::Instant::now();
+            i = 0;
+            while i < self.channels {
+                data[i].record_end = Some(finished);
+            }
+
+            each(data);
+        }
     }
 }
