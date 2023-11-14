@@ -51,12 +51,6 @@ impl SamplingRate {
     pub const SAMPLING_RATE_48000: usize = 48000;
     pub const SAMPLING_RATE_96000: usize = 96000;
     pub const SAMPLING_RATE_192000: usize = 192000;
-    
-    // pub const DOUBLE_SAMPLING_RATE_44100: usize = 44100 * 2;
-    // pub const DOUBLE_SAMPLING_RATE_48000: usize = 48000 * 2;
-    // pub const DOUBLE_SAMPLING_RATE_96000: usize = 96000 * 2;
-    // pub const DOUBLE_SAMPLING_RATE_192000: usize = 192000 * 2;
-
 
     pub fn sample_value<T: crate::math::Sample>(&self) -> T {    
         T::from_usize(self.value()).unwrap()
